@@ -1,15 +1,3 @@
-/*
- * Author: Jose Gonzalez Lopez, Christian Laverde, Justin Cardoso
- * Script Description:
- *      Handles converting voice input into valid JSON object.
- * NOTES:
- *      - consider moving Debug.Log() that outputs the command to DebugSuite
- * TO DO:
- *      - Interpret JSON string to valid JSON
- *      - Expand on the instructions for the prompt
- *      - Enable speech recognition via OVR
- */
-
 using OpenAI;
 using System.Collections.Generic;
 using TMPro;
@@ -20,6 +8,7 @@ using static System.Net.Mime.MediaTypeNames;
 using static UnityEngine.Rendering.DebugUI;
 #if !UNITY_STANDALONE_WIN
 using Oculus.Interaction;
+using Wit; // Wit.ai Unity SDK
 //using UnityEngine.Windows.Speech;
 #endif
 
@@ -34,12 +23,6 @@ public class CommandInterpreter : MonoBehaviour {
     private OpenAIApi openai;
     private string prompt;
 
-    // Whisper
-    private readonly string fileName = "output.wav";
-    private readonly int MAX_DURATION = 30;
-    private AudioClip clip;
-    private bool isRecording;
-    private float time = 0;
 
     //Gesture Detect
 #if !UNITY_STANDALONE_WIN
@@ -59,54 +42,74 @@ public class CommandInterpreter : MonoBehaviour {
         Debug.Log(prompt);
     }
 
-    private void Start() {
-        dropdown.ClearOptions();
-        foreach (var device in Microphone.devices) {
-            dropdown.options.Add(new TMP_Dropdown.OptionData(device));
-        }
-        dropdown.onValueChanged.AddListener(ChangeMicrophone);
-        inputBox.text = "...";
-        var index = PlayerPrefs.GetInt("user-mic-device-index");
-        dropdown.SetValueWithoutNotify(index);
-        dropdown.RefreshShownValue();
+    // Wit
 
-        messages.Add(new ChatMessage() { Role = "system", Content = prompt });
+    private readonly string fileName = "output.wav";
+    private readonly int MAX_DURATION = 30;
+    private AudioClip clip;
+    private bool isRecording;
+    private float time = 0;
+
+    private Wit.Wit witClient;
+
+    // Start is called before the first frame update
+    void Start()
+    {
+        witClient = new Wit.Wit("4BQIS2VAGGAEJB4YQ5OSYWGV7HSX4CJO");
+        // Initialize microphone dropdown with available devices
+        PopulateMicrophoneDropdown();
     }
-    private void ChangeMicrophone(int index) {
-        PlayerPrefs.SetInt("user-mic-device-index", index);
+
+    private void PopulateMicrophoneDropdown()
+    {
+        string[] microphoneDevices = Microphone.devices;
+        microphoneDropdown.ClearOptions();
+        microphoneDropdown.AddOptions(new List<string>(microphoneDevices));
     }
-    private void StartRecording() {
+
+    public void StartRecording()
+    {
         isRecording = true;
         symbol.enabled = true;
         inputBox.text = "Listening...";
 
-#if UNITY_STANDALONE_WIN
-        var index = PlayerPrefs.GetInt("user-mic-device-index");
-        clip = Microphone.Start(dropdown.options[index].text, false, MAX_DURATION, 44100);
-#else
-        //var index = PlayerPrefs.GetInt("user-mic-device-index");
-        clip = Microphone.Start(dropdown.options[0].text, false, MAX_DURATION, 44100);
-#endif
+        int selectedMicrophoneIndex = microphoneDropdown.value;
+        string selectedMicrophone = Microphone.devices[selectedMicrophoneIndex];
+
+        clip = Microphone.Start(selectedMicrophone, false, 30, 44100);
     }
-    private async void EndRecording() {
-        isRecording = false;
-        symbol.enabled = false;
-        time = 0;
-        inputBox.text = "Transcribing...";
-        Microphone.End(null);
-        byte[] data = SaveWav.Save(fileName, clip);
-        var req = new CreateAudioTranscriptionsRequest {
-            FileData = new FileData() { Data = data, Name = "audio.wav" },
-            Model = "whisper-1",
-            Language = "en"
-        };
-        var res = await openai.CreateAudioTranscription(req);
-        inputBox.text = res.Text;
-        if (res.Error != null)
-            inputBox.text = "You wont believe it.";
-        if (res.Text != "")
-            CreateJSON(res.Text);
+
+public async void EndRecording()
+{
+    isRecording = false;
+    symbol.enabled = false;
+    time = 0;
+    inputBox.text = "Transcribing...";
+    Microphone.End(null);
+
+    byte[] audioData = WavUtility.GetWavData(clip);
+
+    // Send audio data to Wit.ai for speech recognition
+    WitResponse response = await witClient.AudioMessageAsync(audioData);
+
+    // Extract text from Wit.ai response
+    if (response != null && response.Entities.ContainsKey("message_body"))
+    {
+        string messageBody = response.Entities["message_body"][0].Value;
+        inputBox.text = messageBody;
+
+        // Now you have the recognized text from Wit.ai (messageBody).
+        // You can use this text for further processing.
+
+        // For example, if you want to send it to an AI chatbot, you can do so here.
+        
     }
+    else
+    {
+        inputBox.text = "Failed to transcribe audio.";
+    }
+}
+
 
     // Update is called once per frame
     void Update() {
