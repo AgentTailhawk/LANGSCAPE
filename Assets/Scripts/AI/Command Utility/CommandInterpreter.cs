@@ -35,8 +35,10 @@ public class CommandInterpreter : MonoBehaviour {
     // OpenAI Settings
     private OpenAIApi openai;
     private OpenAIApi b_llm;
+    private OpenAIApi o_llm;
     private string prompt;
     private string b_prompt;
+    private string o_prompt;
 
     // Whisper
     private readonly string fileName = "output.wav";
@@ -49,24 +51,26 @@ public class CommandInterpreter : MonoBehaviour {
 #if !UNITY_STANDALONE_WIN
     public GestureTest gesture;
     public GestureTest gesture2;
+    //public GestureTest gesture3;
 #endif
 
     // ChatGPT
     private List<ChatMessage> messages = new List<ChatMessage>();
     private List<ChatMessage> b_messages = new List<ChatMessage>();
+    private List<ChatMessage> o_messages = new List<ChatMessage>();
 
     // Search
     private SearchAlgorithms sa = new SearchAlgorithms();
-    private bool change;
+    private bool[] change = new bool[2];
 
     // Command Indicators for Only Instructions 
     // :: Block Building => 1 for Only Commands, 2 for Words and Commands ::
     string[] indicator = { "f ", "m ", "r ", "c ", "u ", "v ", "q ", "t " };
     string[] indicator2 = { " f ", " m ", " r ", " c ", " u ", " v ", " q ", " t ", "\nf ", "\nm ", "\nr ", "\nc ", "\nu ", "\nv ", "\nq ", "\nt " };
+    
     // :: Background Building => Switch Keyword, 3 for Only Commands, 4 for Words and Commands ::
-
     #if UNITY_STANDALONE_WIN
-    string LLM_keyword = "background"; //for windows version
+    string[] LLM_keyword = { "background", "zoo" }; //for windows version
     #endif
     
     string[] indicator3 = { "d ", "l ", "z ", "o " };
@@ -89,7 +93,14 @@ public class CommandInterpreter : MonoBehaviour {
             throw new System.Exception("No file found called prompt in 'Assets/Resources/OpenAI/BACKGROUND");
         b_prompt = filedata.text;
         Debug.Log(b_prompt);
-        
+
+        // Object JSON LLM
+        o_llm = new OpenAIApi(apiKey: "sk-#");
+        filedata = Resources.Load<TextAsset>("OpenAI/OBJECT");
+        if (filedata == null)
+            throw new System.Exception("No file found called prompt in 'Assets/Resources/OpenAI/OBJECT");
+        o_prompt = filedata.text;
+        Debug.Log(o_prompt);
     }
 
     private void Start() {
@@ -105,6 +116,7 @@ public class CommandInterpreter : MonoBehaviour {
 
         messages.Add(new ChatMessage() { Role = "system", Content = prompt });
         b_messages.Add(new ChatMessage() { Role = "system", Content = b_prompt });
+        o_messages.Add(new ChatMessage() { Role = "system", Content = o_prompt });
     }
     private void ChangeMicrophone(int index) {
         PlayerPrefs.SetInt("user-mic-device-index", index);
@@ -150,12 +162,13 @@ public class CommandInterpreter : MonoBehaviour {
         if (Input.GetKeyUp(KeyCode.V))
             EndRecording();
 #else
-        if (!isRecording && (gesture.selected || gesture2.selected))
+        if (!isRecording && ( gesture.selected || gesture2.selected /*|| gesture3.selected*/ ))
         {
-            change = gesture2.selected;
+            change[0] = gesture2.selected;
+            //change[1] = gesture3.selected;
             StartRecording();
         }
-        if (isRecording && (!gesture.selected && !gesture2.selected))
+        if (isRecording && ( !gesture.selected && !gesture2.selected /*&& !gesture3.selected*/ ))
         {
             EndRecording();
         }
@@ -174,13 +187,14 @@ public class CommandInterpreter : MonoBehaviour {
         };
 
         #if UNITY_STANDALONE_WIN
-                change = sa.SwitchLLM(userRequest.Content, LLM_keyword);
+                change[0] = sa.SwitchLLM(userRequest.Content, LLM_keyword[0]);
+                change[1] = sa.SwitchLLM(userRequest.Content, LLM_keyword[1]);
         #endif
 
         outputBox.text = "Loading response...";
 
         // If User Input has key indicator "background" (case-insensitive), Switch to Second LLM
-        if (change)
+        if (change[0])
         {
             b_messages.Add(userRequest);
 
@@ -258,6 +272,53 @@ public class CommandInterpreter : MonoBehaviour {
             }
             
             //outputBox.text = "Background Changes Currently Not Implemented";
+        }
+        else if (change[1])
+        {
+            o_messages.Add(userRequest);
+
+            // Complete the instruction
+            try
+            {
+                var cpResponse = await o_llm.CreateChatCompletion(new CreateChatCompletionRequest()
+                {
+                    Model = "gpt-3.5-turbo-16k",
+                    Messages = o_messages,
+                    Temperature = 0f,
+                    MaxTokens = 256,
+                    PresencePenalty = 0,
+                    FrequencyPenalty = 0
+                });
+
+                if (cpResponse.Choices != null && cpResponse.Choices.Count > 0)
+                {
+                    var aiRespite = cpResponse.Choices[0].Message;
+                    aiRespite.Content = aiRespite.Content.Trim();
+
+                    o_messages.Add(aiRespite);
+
+                    // Outputs Ai Response without Commands into Output Box
+                    string fluff = "AI Responded;
+
+                    // Outputs Ai Response without Commands into Output Box
+                    outputBox.text = fluff;
+                    // Outputs Ai Response without Sentence into Debug Log
+                    Debug.Log("Command: " + aiRespite.Content);
+
+                    // Implement Object Manager Instance
+                    ObjectManager.Instance.Execute(aiRespite.Content);
+                }
+                else
+                {
+                    outputBox.text = "No text was generated from this prompt.";
+                }
+            }
+            catch (System.Exception e)
+            {
+                outputBox.text = e.Message;
+            }
+
+            //outputBox.text = "Dynamic Object Spawning Currently Not Implemented";
         }
         else
         {
