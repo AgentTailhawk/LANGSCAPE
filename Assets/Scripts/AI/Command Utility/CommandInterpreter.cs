@@ -70,7 +70,7 @@ public class CommandInterpreter : MonoBehaviour {
     
     // :: Background Building => Switch Keyword, 3 for Only Commands, 4 for Words and Commands ::
     #if UNITY_STANDALONE_WIN
-    string[] LLM_keyword = { "background", "zoo" }; //for windows version
+    string[] LLM_keyword = { "background", "chowder" }; //for windows version
     #endif
     
     string[] indicator3 = { "d ", "l ", "z ", "o " };
@@ -78,7 +78,7 @@ public class CommandInterpreter : MonoBehaviour {
 
     // Loads prompt from file in Assets/Resources/prompt
     void Awake() {
-        openai = new OpenAIApi(apiKey: "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");
+        openai = new OpenAIApi(apiKey: "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");
         // 1st LLM
         TextAsset filedata = Resources.Load<TextAsset>("OpenAI/PROMPT");
         if (filedata == null)
@@ -87,7 +87,7 @@ public class CommandInterpreter : MonoBehaviour {
         Debug.Log(prompt);
         
         // Background LLM
-        b_llm = new OpenAIApi(apiKey: "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");
+        b_llm = new OpenAIApi(apiKey: "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");
         filedata = Resources.Load<TextAsset>("OpenAI/BACKGROUND");
         if (filedata == null)
             throw new System.Exception("No file found called prompt in 'Assets/Resources/OpenAI/BACKGROUND");
@@ -95,8 +95,8 @@ public class CommandInterpreter : MonoBehaviour {
         Debug.Log(b_prompt);
 
         // Object JSON LLM
-        o_llm = new OpenAIApi(apiKey: "sk-#");
-        filedata = Resources.Load<TextAsset>("OpenAI/OBJECT");
+        o_llm = new OpenAIApi(apiKey: "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");
+        filedata = Resources.Load<TextAsset>("OpenAI/OBJECTS");
         if (filedata == null)
             throw new System.Exception("No file found called prompt in 'Assets/Resources/OpenAI/OBJECT");
         o_prompt = filedata.text;
@@ -285,7 +285,7 @@ public class CommandInterpreter : MonoBehaviour {
                     Model = "gpt-3.5-turbo-16k",
                     Messages = o_messages,
                     Temperature = 0f,
-                    MaxTokens = 256,
+                    MaxTokens = 1000,
                     PresencePenalty = 0,
                     FrequencyPenalty = 0
                 });
@@ -298,7 +298,7 @@ public class CommandInterpreter : MonoBehaviour {
                     o_messages.Add(aiRespite);
 
                     // Outputs Ai Response without Commands into Output Box
-                    string fluff = "AI Responded;
+                    string fluff = "AI Responded";
 
                     // Outputs Ai Response without Commands into Output Box
                     outputBox.text = fluff;

@@ -13,7 +13,9 @@ public class ObjectManager : MonoBehaviour
     [Header("Background Scripts")]
     /* Script for Spawn and Despawning Objects */
     public Spawner spawner;
-    public DynamicObjects dynamicObjects;
+
+    [Header("Shape Creation")]
+    public ShapeCreator shapeCreator; // Assign this in the Inspector
 
 
 
@@ -52,15 +54,15 @@ public class ObjectManager : MonoBehaviour
     {
         int error = LangscapeError.CMD_VALID.code;
         // Despawn Object if Currently Existing
-        if(toy != null)
+        if (toy != null)
         {
             spawner.Despawn(toy);
         }
         // Call DynamicObject Method, Returns GameObject
-        toy = new GameObject();
+        toy = shapeCreator.CreateMeshFromJson(jsonString);
 
         // Spawn Object
-        spawner.Spawn(toy, True);
+        spawner.Spawn(toy, true);
 
         // Summon Langscape Error
         LangscapeError.Instance.ThrowUserError(error);
