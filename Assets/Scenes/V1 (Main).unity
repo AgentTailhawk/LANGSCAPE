@@ -31425,6 +31425,8 @@ MonoBehaviour:
   m_EditorClassIdentifier: 
   spawner: {fileID: 1418384555}
   shapeCreator: {fileID: 1836050606}
+  oculusCamera: {fileID: 5098033517013840881}
+  windowsCamera: {fileID: 228074200}
 --- !u!4 &1914272471
 Transform:
   m_ObjectHideFlags: 0

@@ -3,25 +3,17 @@ using UnityEngine;
 
 public class ObjectManager : MonoBehaviour
 {
-    // Variables
-    /* For Keeping Track of Objects */
     const int MaxObjects = 1;
-    //ToyBox box;
-    //List<GameObject> items;
     GameObject toy;
 
     [Header("Background Scripts")]
-    /* Script for Spawn and Despawning Objects */
     public Spawner spawner;
 
     [Header("Shape Creation")]
     public ShapeCreator shapeCreator; // Assign this in the Inspector
-
-
-
-    /*
-        Singleton
-    */
+    [Header("Camera")]
+    public Camera oculusCamera;
+    public Camera windowsCamera;
     private static ObjectManager _instance;
     public static ObjectManager Instance
     {
@@ -29,40 +21,66 @@ public class ObjectManager : MonoBehaviour
         {
             if (_instance == null)
             {
-                Debug.LogError("BackgroundManager::Instance - BackgroundManager is null");
+                Debug.LogError("ObjectManager::Instance - ObjectManager is null");
             }
 
             return _instance;
         }
     }
 
-
     private void Awake()
     {
-        // Singleton
         _instance = this;
-
-        // Keeps Track of Objects in World 
-        //box = new ToyBox();
-        //items = new List<GameObject>();
         toy = null;
-
     }
 
-    // For Now, Should Spawn New Shape and Despawn Old Shape
     public void Execute(string jsonString)
     {
         int error = LangscapeError.CMD_VALID.code;
+        
         // Despawn Object if Currently Existing
         if (toy != null)
         {
             spawner.Despawn(toy);
         }
+
         // Call DynamicObject Method, Returns GameObject
         toy = shapeCreator.CreateMeshFromJson(jsonString);
 
+        Vector3 playerPos;
+        Vector3 playerDir;
+        Quaternion playerRot;
+        float spawnDist = 0;
+
+        #if !UNITY_STANDALONE_WIN
+                playerPos = oculusCamera.transform.position;
+                playerDir = oculusCamera.transform.forward;
+                playerRot = oculusCamera.transform.rotation;
+                spawnDist = 5;
+        #else
+            playerPos = windowsCamera.transform.position;
+            playerDir = windowsCamera.transform.forward;
+            playerRot = windowsCamera.transform.rotation;
+            spawnDist = 10;
+        #endif
+
+        Vector3 spawnPos = playerPos + playerDir * spawnDist;
+
+        // Set toy position and rotation
+        if (toy != null)
+        {
+            toy.transform.position = spawnPos;
+            toy.transform.rotation = playerRot;
+            // If you want to set the direction as well, you might need to adjust the code accordingly.
+            // toy.transform.forward = playerDir;
+        }
+        else
+        {
+            Debug.LogError("Toy is null. Make sure it's instantiated or obtained correctly.");
+        }
+
         // Spawn Object
-        spawner.Spawn(toy, true);
+        // spawner.Spawn(toy, true);
 
         // Summon Langscape Error
         LangscapeError.Instance.ThrowUserError(error);
